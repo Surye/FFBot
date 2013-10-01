@@ -375,7 +375,7 @@ def get_wdis_threads(ff_subreddit):
 
 # Sign into Reddit and get the subreddit info
 r = praw.Reddit('Fantasy Football Bot by TonyG623')
-r.login(username="username",password='grollo')
+r.login(username="username",password='password')
 ff_sub_reddit = r.get_subreddit('ffbottest')
 wdis_posts = get_wdis_threads(ff_sub_reddit)
 print wdis_posts
