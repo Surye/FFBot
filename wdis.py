@@ -216,6 +216,29 @@ def format_player_name(name):
     name = name.upper()
     return name
 
+def get_four_for_four_news_link(player):
+    print 'yes'
+    player = player.replace('-','%20')
+    link = 'http://www.4for4.com/players/player_search.php?player_search=%s' % player
+    response = urllib2.urlopen(link)
+    page_source = response.read()
+
+    found_player = False
+    soup = BeautifulSoup(page_source)
+    for a in soup.findAll('a'):
+        if 'profile.php?PID=' in a['href']:
+            found_player = True
+            four_for_for_player = a['href']
+            break
+
+    if found_player:
+        four_for_for_player = 'http://www.4for4.com%s' % four_for_for_player
+        return four_for_for_player
+    else:
+        return False
+
+
+
 def compare_two_players(players,ppr,position,week_num):
     """
     Compares two players using fantasy pros comparision tool
@@ -225,19 +248,21 @@ def compare_two_players(players,ppr,position,week_num):
         if 'QB' not in position.upper():
             link +='?scoring=PPR'
     print link
-
     response = urllib2.urlopen(link)
-    page_source = response.read()
+    ffpro_page_source = response.read()
+
+    player_a_news = get_four_for_four_news_link(players[0]['name'])
+    player_b_news = get_four_for_four_news_link(players[1]['name'])
 
     percentages = []
-    soup = BeautifulSoup(page_source)
+    soup = BeautifulSoup(ffpro_page_source)
     for span in soup.findAll('span'):
         if '%' in span.text:
             percentages.append(span.text)
     if ppr:
-        ppr_comment = ', in a PPR League:'
+        ppr_comment = 'In a PPR League:'
     else:
-        ppr_comment = ', in a Standard League:'
+        ppr_comment = 'In a Standard League:'
 
     player_a_perc = int(percentages[0].rstrip('%%'))
     player_a_name = format_player_name(players[0]['name'])
@@ -247,26 +272,37 @@ def compare_two_players(players,ppr,position,week_num):
     player_b_oppenent = players[1]['opponent']
 
     draw = False
+    higher_ranked_news = False
+    lower_ranked_news = False
     if player_a_perc > player_b_perc:
         higher_ranked_player = player_a_name
         higher_ranked_opponent = player_a_oppenent
         lower_ranked_player = player_b_name
         lower_ranked_opponent = player_b_oppenent
+        if player_a_news:
+            higher_ranked_player = '[%s](%s)' % (higher_ranked_player,player_a_news)
+        if player_b_news:
+            lower_ranked_player =  '[%s](%s)' % (lower_ranked_player,player_b_news)
+
     elif player_b_perc > player_a_perc:
         higher_ranked_player = player_b_name
         higher_ranked_opponent = player_b_oppenent
         lower_ranked_player = player_a_name
         lower_ranked_opponent = player_a_oppenent
+        if player_b_news:
+            higher_ranked_player = '[%s](%s)' % (higher_ranked_player,player_b_news)
+        if player_a_news:
+            lower_ranked_player =  '[%s](%s)' % (lower_ranked_player,player_a_news)
     else:
         draw = True
 
     if not draw:
-        comment = 'According to [FantasyPros](%s)%s\n\n' \
-              '**Experts say to start %s against %s** and to sit %s against %s.\n\n' % (link,ppr_comment,higher_ranked_player,higher_ranked_opponent,lower_ranked_player,lower_ranked_opponent)
+        comment = '%s\n\n' \
+              '**Experts say to start %s against %s** and to sit %s against %s.\n\n' % (ppr_comment,higher_ranked_player,higher_ranked_opponent,lower_ranked_player,lower_ranked_opponent)
     else:
-        comment = 'According to [FantasyPros](%s)%s\n\n its a toss up. Hopefully another user can come in and help you out' \
+        comment = '%s\n\n its a toss up. Hopefully another user can come in and help you out' \
 
-    return comment
+    return comment,link
 
 def compare_more_than_2_players(players,position,ppr,week_num):
     """
@@ -276,11 +312,16 @@ def compare_more_than_2_players(players,position,ppr,week_num):
         position = 'ppr-%s' % position
     c,conn = connect_to_db()
     players_and_ranks = []
+
     for player in players:
+        player_news = get_four_for_four_news_link(player['name'])
         db = position.replace('-','_')
         for row in c.execute("SELECT rank FROM %s where name='%s'" % (db.lower(),player['name'])):
             player_rank = row[0]
-            players_and_ranks.append('%s. %s against **%s**' % (player_rank,format_player_name(player['name']),player['opponent']))
+            if player_news:
+                players_and_ranks.append('%s. [%s](%s) against **%s**' % (player_rank,format_player_name(player['name']),player_news,player['opponent']))
+            else:
+                players_and_ranks.append('%s. %s against **%s**' % (player_rank,format_player_name(player['name']),player['opponent']))
     conn.close()
     players_and_ranks.sort
 
@@ -289,10 +330,11 @@ def compare_more_than_2_players(players,position,ppr,week_num):
     else:
         ppr_comment = 'in a Standard League'
 
-    comment = '[FantasyPros](http://www.fantasypros.com/nfl/rankings/%s.php) currently has the players you mentioned ranked as following %s:\n\n' % (position.lower(),ppr_comment)
+    link = 'http://www.fantasypros.com/nfl/rankings/%s.php' %  position.lower()
+    comment = 'Experts have the players that you mentioned ranked in the following order %s:\n\n' % ppr_comment
     for player_and_rank in players_and_ranks:
         comment += '%s\n\n' % player_and_rank
-    return comment
+    return comment,link
 
 def get_wdis_threads(ff_subreddit):
     """
@@ -333,7 +375,7 @@ def get_wdis_threads(ff_subreddit):
 
 # Sign into Reddit and get the subreddit info
 r = praw.Reddit('Fantasy Football Bot by TonyG623')
-r.login(username="username",password='password')
+r.login(username="username",password='grollo')
 ff_sub_reddit = r.get_subreddit('ffbottest')
 wdis_posts = get_wdis_threads(ff_sub_reddit)
 print wdis_posts
@@ -343,9 +385,12 @@ week_num = find_week_number()
 # Next weeks week number
 next_week = week_num + 1
 
-# The Footer that gets added to Every post
-comment_footer = '\nRankings currently based off of **Week %d**.' \
-                 '\n\n\nThis is a bot created by /u/tonyg623! Im replying to you because no one has replied to you yet and your post is over 30 minutes old. Did I get this wrong? Message Me! **Currently in Beta**.'  % week_num
+def create_footer(fantasy_pros_link):
+    # The Footer that gets added to Every post
+    comment_footer = '\nRankings currently based off of **Week %d**.' \
+                     '\n\n\n\nPlayer Rankings provided by **[FantasyPros](%s)**' \
+                     '\n\nPlayer News Provided by **[4for4](http://4for4.com)**'  % (week_num,fantasy_pros_link)
+    return comment_footer
 
 for thread in wdis_posts:
     # Get the submission
@@ -373,8 +418,8 @@ for thread in wdis_posts:
 
                     # If it finds two players, do a comparison.
                     if len(players) == 2:
-                        wdis_comment = compare_two_players(players,ppr,position,week_num)
-                        wdis_comment += comment_footer
+                        wdis_comment,link = compare_two_players(players,ppr,position,week_num)
+                        wdis_comment += create_footer(link)
                         # Print the WDIS comment for debugging
                         print wdis_comment
                         comment.upvote()
@@ -382,8 +427,8 @@ for thread in wdis_posts:
 
                     # if it finds more than two players do a rankings comparision.
                     elif len(players) > 2:
-                        wdis_comment = compare_more_than_2_players(players,position,ppr,week_num)
-                        wdis_comment += comment_footer
+                        wdis_comment,link = compare_more_than_2_players(players,position,ppr,week_num)
+                        wdis_comment += create_footer(link)
                         # Print the WDIS comment for debugging
                         print wdis_comment
                         comment.upvote()
@@ -391,4 +436,4 @@ for thread in wdis_posts:
         except:
             # Catch random exceptions that the reddit library doesnt like. I know this is bad and I shouldnt do this way
             # but it works for now.
-            pass
+            raise
