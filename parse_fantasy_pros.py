@@ -8,7 +8,7 @@ conn = sqlite3.connect('players.db')
 c = conn.cursor()
 
 # BELOW ARE THE POSTION NAMES OF EACH PAGE ON FANTASYPROS
-positions = ['qb','rb','te','flex','wr','ppr_rb','ppr_te','ppr_flex','ppr_wr']
+positions = ['k','qb','rb','te','flex','wr','ppr_rb','ppr_te','ppr_flex','ppr_wr']
 
 for position in positions:
     # TRY AND CREATE TABLE IF WE NEED TO

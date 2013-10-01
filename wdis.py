@@ -86,12 +86,13 @@ def check_if_common(c,name):
         return True
 
     num_of_names = 0
-    for row in c.execute("SELECT * FROM %s WHERE name LIKE '%%%s%%'" % (position.lower(),name)):
+    for row in c.execute("SELECT name FROM %s WHERE name LIKE '%%%s%%'" % (position.lower(),name)):
         num_of_names += 1
+
 
     # If a nickname contains part of a players name. Example CJ Spiller and CJ2K
     nick_name = False
-    for row in c.execute("SELECT * FROM nick_names WHERE nick_name LIKE '%%%s%%'" % name):
+    for row in c.execute("SELECT name FROM nick_names WHERE nick_name LIKE '%%%s%%'" % name):
         nick_name = True
     if nick_name:
         return True
@@ -160,7 +161,8 @@ def get_players(comment,position):
 
         # CHECK FOR NICK NAMES FIRST
         nick_names = []
-        for row in c.execute("SELECT nick_name FROM nick_names WHERE name='%s'" % player):
+
+        for row in c.execute("SELECT nick_name FROM nick_names WHERE name='%s'" % player.replace(' ','-').lower()):
             nick_names.append(row[0])
         if len(nick_names) > 0:
             for nick_name in nick_names:
@@ -237,9 +239,33 @@ def compare_two_players(players,ppr,position,week_num):
     else:
         ppr_comment = ', in a Standard League:'
 
-    comment = 'According to [FantasyPros](%s)%s\n\n' \
-          '**%s** of experts say to start **%s** against **%s**.\n\n' \
-          '**%s** of experts say to start **%s** against **%s**.\n\n ' % (link,ppr_comment,percentages[0],format_player_name(players[0]['name']),players[0]['opponent'],percentages[1],format_player_name(players[1]['name']),players[1]['opponent'])
+    player_a_perc = int(percentages[0].rstrip('%%'))
+    player_a_name = format_player_name(players[0]['name'])
+    player_a_oppenent = players[0]['opponent']
+    player_b_perc = int(percentages[1].rstrip('%%'))
+    player_b_name = format_player_name(players[1]['name'])
+    player_b_oppenent = players[1]['opponent']
+
+    draw = False
+    if player_a_perc > player_b_perc:
+        higher_ranked_player = player_a_name
+        higher_ranked_opponent = player_a_oppenent
+        lower_ranked_player = player_b_name
+        lower_ranked_opponent = player_b_oppenent
+    elif player_b_perc > player_a_perc:
+        higher_ranked_player = player_b_name
+        higher_ranked_opponent = player_b_oppenent
+        lower_ranked_player = player_a_name
+        lower_ranked_opponent = player_a_oppenent
+    else:
+        draw = True
+
+    if not draw:
+        comment = 'According to [FantasyPros](%s)%s\n\n' \
+              '**Experts say to start %s against %s** and to sit %s against %s.\n\n' % (link,ppr_comment,higher_ranked_player,higher_ranked_opponent,lower_ranked_player,lower_ranked_opponent)
+    else:
+        comment = 'According to [FantasyPros](%s)%s\n\n its a toss up. Hopefully another user can come in and help you out' \
+
     return comment
 
 def compare_more_than_2_players(players,position,ppr,week_num):
@@ -254,7 +280,7 @@ def compare_more_than_2_players(players,position,ppr,week_num):
         db = position.replace('-','_')
         for row in c.execute("SELECT rank FROM %s where name='%s'" % (db.lower(),player['name'])):
             player_rank = row[0]
-            players_and_ranks.append('**(%s)**. %s against **%s**' % (player_rank,format_player_name(player['name']),player['opponent']))
+            players_and_ranks.append('%s. %s against **%s**' % (player_rank,format_player_name(player['name']),player['opponent']))
     conn.close()
     players_and_ranks.sort
 
@@ -296,6 +322,7 @@ def get_wdis_threads(ff_subreddit):
                 position = 'UNKNOWN'
 
             if kicker_te:
+
                 wdis_posts.append((submission,'TE'))
                 wdis_posts.append((submission,'K'))
             else:
@@ -307,9 +334,9 @@ def get_wdis_threads(ff_subreddit):
 # Sign into Reddit and get the subreddit info
 r = praw.Reddit('Fantasy Football Bot by TonyG623')
 r.login(username="username",password='password')
-ff_sub_reddit = r.get_subreddit('fantasyfootball')
+ff_sub_reddit = r.get_subreddit('ffbottest')
 wdis_posts = get_wdis_threads(ff_sub_reddit)
-
+print wdis_posts
 
 # Get the week number straight from Fantasy Pros
 week_num = find_week_number()
@@ -317,7 +344,7 @@ week_num = find_week_number()
 next_week = week_num + 1
 
 # The Footer that gets added to Every post
-comment_footer = 'Rankings currently based off of **Week %d**.' \
+comment_footer = '\nRankings currently based off of **Week %d**.' \
                  '\n\n\nThis is a bot created by /u/tonyg623! Im replying to you because no one has replied to you yet and your post is over 30 minutes old. Did I get this wrong? Message Me! **Currently in Beta**.'  % week_num
 
 for thread in wdis_posts:
@@ -333,7 +360,7 @@ for thread in wdis_posts:
                 # Calculate the Time since comment. Not sure why this doesn't equal the actual time. Didnt look to deep into it.
                 time_since_comment = int(time.time()) - int(comment.created)
                 # -27000 seems to be the magic number of a half hour.
-                if time_since_comment > -27000:
+                if time_since_comment > -30000:
                     # Parse the comment to see if its a PPR league or not
                     ppr = detect_ppr(comment.body)
                     # Parse the comment to get players
