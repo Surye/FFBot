@@ -1,0 +1,8 @@
+I have this running using Jenkins.
+
+I have parse_fantasy_pros.py running hourly which pulls the rankings from Fantasy Pros and puts them into a DB
+
+I then have wdis.py running every 5 minutes which parses the last 30 threads and looks for official WDIS threads. It then
+looks for posts with no replies. If it finds two players it does a comparison. If it finds more than two players it does
+a rankings.
+
