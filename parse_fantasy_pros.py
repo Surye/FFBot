@@ -89,7 +89,9 @@ nick_names = [
     ('kendall-wright','KENDELL WRIGHT'),
     ('giovani-bernard','GIO'),
     ('matthew-stafford','MATT STAFFORD'),
-    ('leveon-bell','VEON BELL')
+    ('leveon-bell','VEON BELL'),
+    ('lesean-mccoy','SHADY'),
+    ('marshawn-lynch','SKITTLES')
     ]
 
 # insert the nick names in to the DB
